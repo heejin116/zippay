@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: zippay-postgres
+    environment:
+      POSTGRES_DB: zippay
+      POSTGRES_USER: zippay
+      POSTGRES_PASSWORD: zippay
+    ports:
+      - "5432:5432"
+    volumes:
+      - zippay-pgdata:/var/lib/postgresql/data
+volumes:
+  zippay-pgdata:
