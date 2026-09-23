@@ -12,6 +12,7 @@ frontend/.vite/
 # Env / secrets
 .env
 .env.*
+!.env.example
 *.local
 
 # OS / IDE

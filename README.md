@@ -4,7 +4,7 @@
 핵심은 **잔액 무결성·동시성·멱등성**을 갖춘 거래원장.
 
 ## 스택
-- Backend: Spring Boot 3.3 (Java 21), Spring Data JPA, Spring Security + JWT
+- Backend: Spring Boot 4.1 (Java 21), Spring Data JPA, Spring Security + JWT
 - DB: PostgreSQL (스키마는 Flyway 관리)
 - 동시성: `@Transactional` + 비관적 락(PESSIMISTIC_WRITE), 지갑 id 오름차순 락
 - 금액: BigDecimal + 통화코드(NUMERIC(19,4), HALF_EVEN)
@@ -17,9 +17,13 @@
 ```bash
 # 1) DB 기동
 docker compose up -d
-# 2) 백엔드 (dev 프로파일 기본)
-cd backend && ./gradlew bootRun
-# 3) 프론트
+# 2) 백엔드 환경변수 — 예시 복사 후 값 채우기 (.env는 git 추적 제외)
+cd backend
+cp .env.example .env
+# 3) 백엔드 실행
+set -a; source .env; set +a
+./gradlew bootRun
+# 4) 프론트
 cd frontend && npm install && npm run dev
 ```
 > 최초 `./gradlew` 실행 시 Gradle 배포판을 자동 내려받습니다(인터넷 필요).
