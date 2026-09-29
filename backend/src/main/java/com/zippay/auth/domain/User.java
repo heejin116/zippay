@@ -12,7 +12,7 @@ public class User {
     private Long id;
 
     @Column(nullable = false, length = 254)
-    private String email;
+    private Email email;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -26,16 +26,16 @@ public class User {
 
     protected User() {}
 
-    public static User create(String email, String passwordHash) {
+    public static User create(Email email, String passwordHash) {
         User user = new User();
-        user.email = email.toLowerCase(Locale.ROOT);   // 소문자 정규화
+        user.email = email;
         user.passwordHash = passwordHash;
         user.role = Role.USER;                         // 가입 시 기본 역할
         return user;
     }
 
     public Long getId() { return id; }
-    public String getEmail() { return email; }
+    public Email getEmail() { return email; }
     public Role getRole() { return role; }
     public Instant getCreatedAt() { return createdAt; }
 }
