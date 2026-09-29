@@ -17,4 +17,6 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Build & Test (Testcontainers uses Docker on runner)
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: ./gradlew build
