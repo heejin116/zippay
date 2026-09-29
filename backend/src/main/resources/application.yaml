@@ -8,3 +8,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate  # 스키마는 Flyway가 관리, JPA는 매핑 검증만
+    open-in-view: false
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-ttl: 15m

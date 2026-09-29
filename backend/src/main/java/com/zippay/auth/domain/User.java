@@ -2,7 +2,6 @@ package com.zippay.auth.domain;
 
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.util.Locale;
 
 @Entity
 @Table(name="users")
@@ -38,4 +37,5 @@ public class User {
     public Email getEmail() { return email; }
     public Role getRole() { return role; }
     public Instant getCreatedAt() { return createdAt; }
+    public String getPasswordHash() { return passwordHash; }
 }
