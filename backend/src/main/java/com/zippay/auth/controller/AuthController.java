@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 
+import static com.zippay.common.security.CookieBearerTokenResolver.ACCESS_TOKEN_COOKIE;
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -40,7 +42,8 @@ public class AuthController {
     public ResponseEntity<Void> login(@Valid @RequestBody LoginRequest request) {
         String token = authService.login(request);
 
-        ResponseCookie cookie = ResponseCookie.from("access_token", token)
+
+        ResponseCookie cookie = ResponseCookie.from(ACCESS_TOKEN_COOKIE, token)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")
