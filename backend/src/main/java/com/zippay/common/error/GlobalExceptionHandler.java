@@ -1,6 +1,10 @@
 package com.zippay.common.error;
 
 import com.zippay.auth.exception.DuplicateEmailException;
+import com.zippay.common.money.InvalidAmountException;
+import com.zippay.common.money.UnsupportedCurrencyException;
+import com.zippay.wallet.exception.DuplicateWalletException;
+import com.zippay.wallet.exception.WalletNotFoundException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -27,7 +31,39 @@ public class GlobalExceptionHandler {
                 && "uk_users_email".equals(cve.getConstraintName())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(409, "DUPLICATE_EMAIL", "이미 가입된 이메일입니다."));
         }
+        if (e.getCause() instanceof ConstraintViolationException cve
+                && "uk_wallets_user_currency".equals(cve.getConstraintName())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiError(409, "DUPLICATE_WALLET", "이미 같은 통화의 지갑이 있습니다."));
+        }
         throw e;
+    }
+
+    // 409: 같은 통화 지갑 중복 개설 (순차 요청)
+    @ExceptionHandler(DuplicateWalletException.class)
+    public ResponseEntity<ApiError> handleDuplicateWallet(DuplicateWalletException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiError(409, "DUPLICATE_WALLET", e.getMessage()));
+    }
+
+    // 404: 없는 지갑 + 남의 지갑 (존재 여부 비노출을 위해 403을 쓰지 않는다)
+    @ExceptionHandler(WalletNotFoundException.class)
+    public ResponseEntity<ApiError> handleWalletNotFound(WalletNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError(404, "WALLET_NOT_FOUND", e.getMessage()));
+    }
+
+    // 400: 지원하지 않는 통화
+    @ExceptionHandler(UnsupportedCurrencyException.class)
+    public ResponseEntity<ApiError> handleUnsupportedCurrency(UnsupportedCurrencyException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiError(400, "UNSUPPORTED_CURRENCY", e.getMessage()));
+    }
+
+    // 400: 0 이하 금액, 통화 소수 자릿수 초과
+    @ExceptionHandler(InvalidAmountException.class)
+    public ResponseEntity<ApiError> handleInvalidAmount(InvalidAmountException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiError(400, "INVALID_AMOUNT", e.getMessage()));
     }
 
     // 400: @Valid 검증 실패
