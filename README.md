@@ -39,7 +39,7 @@ cd frontend && npm install && npm run dev
 - [x] STEP 1 DB/User
 - [x] STEP 2 인증 (JWT, HttpOnly 쿠키)
 - [x] STEP 3 지갑 (사용자·통화당 1개, 잔액 음수 금지)
-- [ ] STEP 4 원장 (거래 헤더 + 분개, append-only)
+- [x] STEP 4 원장 (거래 헤더 + 분개, append-only)
 - [ ] STEP 5 충전 (멱등성 키)
 - [ ] STEP 6 KRW P2P 송금 (지갑 id 오름차순 락, 멱등성 키)
 - [ ] STEP 7 Transactional Outbox (테이블·기록까지)
