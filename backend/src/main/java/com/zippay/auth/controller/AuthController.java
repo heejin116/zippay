@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.Duration;
 
 import static com.zippay.common.security.CookieBearerTokenResolver.ACCESS_TOKEN_COOKIE;
 
@@ -43,16 +44,33 @@ public class AuthController {
         String token = authService.login(request);
 
 
-        ResponseCookie cookie = ResponseCookie.from(ACCESS_TOKEN_COOKIE, token)
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, accessTokenCookie(token, jwtProperties.accessTokenTtl()).toString())
+                .build();
+    }
+
+    /**
+     * 같은 이름·Path의 쿠키를 빈 값 + Max-Age=0으로 덮어써 브라우저가 지우게 한다.
+     * HttpOnly 쿠키는 JS로 지울 수 없으므로 서버가 지워줘야 한다.
+     * publicChain(/api/auth/**)이라 토큰이 없거나 만료돼도 호출할 수 있다 → 항상 204.
+     * 주의: 쿠키만 지울 뿐 JWT 자체는 만료(access-token-ttl)까지 유효하다. stateless라 서버에 폐기 목록이 없기 때문.
+     *       토큰 폐기·재사용 감지는 STEP 9(refresh 토큰 회전)에서 다룬다.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout() {
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, accessTokenCookie("", Duration.ZERO).toString())
+                .build();
+    }
+
+    // 발급·삭제 쿠키의 이름·Path·Domain이 하나라도 다르면 브라우저는 다른 쿠키로 보고 지우지 않는다 → 한 곳에서 만든다
+    private static ResponseCookie accessTokenCookie(String value, Duration maxAge) {
+        return ResponseCookie.from(ACCESS_TOKEN_COOKIE, value)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")
                 .path("/")
-                .maxAge(jwtProperties.accessTokenTtl())
-                .build();
-
-        return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .maxAge(maxAge)
                 .build();
     }
 }

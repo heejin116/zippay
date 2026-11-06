@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -104,6 +105,39 @@ class AuthFlowTest {
         mockMvc.perform(post("/api/auth/login")
                         .cookie(new Cookie(ACCESS_TOKEN_COOKIE, expired))
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void login_with_wrong_password_returns_401_invalid_credentials() throws Exception {
+        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"flow@zippay.com","password":"wrong-password1!"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+    }
+
+    @Test
+    void logout_expires_access_token_cookie() throws Exception {
+        Cookie loginCookie = signupAndLogin();
+
+        // 삭제 쿠키는 발급 쿠키와 이름·Path가 같아야 브라우저가 지운다
+        mockMvc.perform(post("/api/auth/logout").cookie(loginCookie))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().value(ACCESS_TOKEN_COOKIE, ""))
+                .andExpect(cookie().maxAge(ACCESS_TOKEN_COOKIE, 0))
+                .andExpect(cookie().path(ACCESS_TOKEN_COOKIE, "/"))
+                .andExpect(cookie().httpOnly(ACCESS_TOKEN_COOKIE, true));
+    }
+
+    @Test
+    void logout_without_cookie_returns_204() throws Exception {
+        // 이미 만료됐거나 로그인 안 한 상태에서 눌러도 실패하지 않아야 한다 (publicChain)
+        mockMvc.perform(post("/api/auth/logout"))
                 .andExpect(status().isNoContent());
     }
 

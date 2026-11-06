@@ -73,9 +73,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiError(400, "INVALID_INPUT", message));
     }
 
-    // 401: 로그인 실패
+    // 401: 로그인 실패. 이메일이 없는지 비밀번호가 틀렸는지 구분하지 않는 고정 메시지 (계정 존재 여부 비노출)
+    // INVALID_INPUT(400, @Valid 실패)과 code를 분리해 클라이언트가 두 경우를 구분할 수 있게 한다
     @ExceptionHandler(AuthenticationException.class)   // org.springframework.security.core
     public ResponseEntity<ApiError> handleAuth(AuthenticationException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiError(401,"INVALID_INPUT", "이메일 또는 비밀번호가 올바르지 않습니다."));   // 401 UNAUTHORIZED, "INVALID_CREDENTIALS", 고정 메시지
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiError(401, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다."));
     }
 }
