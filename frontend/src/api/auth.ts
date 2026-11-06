@@ -20,6 +20,8 @@ export const authApi = {
   // 성공 시 204 + Set-Cookie(access_token, HttpOnly). 응답 본문은 없다.
   login: (body: Credentials) => api<void>('/auth/login', { method: 'POST', body }),
   me: () => api<Me>('/users/me'),
+  // 204 + 쿠키 삭제(Set-Cookie Max-Age=0)
+  logout: () => api<void>('/auth/logout', { method: 'POST' }),
 }
 
 /**

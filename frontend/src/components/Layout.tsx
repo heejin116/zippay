@@ -1,8 +1,14 @@
+import { useMutation } from '@tanstack/react-query'
 import { Link, NavLink, Outlet } from 'react-router'
-import { useMe } from '../api/auth'
+import { authApi, useMe } from '../api/auth'
 
 export function AppLayout() {
   const { data: me } = useMe()
+  const logout = useMutation({
+    mutationFn: authApi.logout,
+    // SPA 내 이동 대신 전체 새로고침: 이전 사용자의 지갑·잔액 캐시가 메모리에 남지 않게 한 번에 비운다
+    onSuccess: () => window.location.assign('/login'),
+  })
 
   return (
     <div className="min-h-screen">
@@ -19,7 +25,17 @@ export function AppLayout() {
               지갑
             </NavLink>
           </nav>
-          {me && <span className="ml-auto text-xs text-neutral-500">사용자 #{me.userId}</span>}
+          <div className="ml-auto flex items-center gap-3">
+            {me && <span className="text-xs text-neutral-500">사용자 #{me.userId}</span>}
+            <button
+              type="button"
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+              className="text-xs text-neutral-500 underline-offset-4 hover:text-neutral-900 hover:underline disabled:opacity-50"
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-8">
