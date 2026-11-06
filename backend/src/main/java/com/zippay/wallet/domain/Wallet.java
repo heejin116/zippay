@@ -2,16 +2,29 @@ package com.zippay.wallet.domain;
 
 import com.zippay.common.money.Currency;
 import com.zippay.common.money.InvalidAmountException;
+import com.zippay.wallet.exception.BalanceLimitExceededException;
 import com.zippay.wallet.exception.InsufficientBalanceException;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 
 @Entity
 @Table(name = "wallets")
 public class Wallet {
+
+    /**
+     * 지갑 보유 한도 (정책 가정값). 충전이든 송금 입금이든 잔액이 늘어나는 모든 경로에 적용되는 지갑 불변식이라
+     * 충전 도메인이 아니라 여기(increase)에 둔다. 잔액 음수 금지(decrease)와 짝.
+     * DB CHECK는 걸지 않는다 — 무결성 규칙이 아니라 바뀔 수 있는 정책 값이라, CHECK로 박으면 한도 조정마다 마이그레이션이 필요하다.
+     */
+    private static final Map<Currency, BigDecimal> MAX_BALANCE = new EnumMap<>(Map.of(
+            Currency.KRW, new BigDecimal("2000000"),
+            Currency.USD, new BigDecimal("2000.00"),
+            Currency.JPY, new BigDecimal("200000")));
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -44,7 +57,16 @@ public class Wallet {
 
     public void increase(BigDecimal amount) {
         validateAmount(amount);
+        BigDecimal limit = maxBalance(currency);
+        if (balance.add(amount).compareTo(limit) > 0) {
+            throw new BalanceLimitExceededException(
+                    currency.name() + " 지갑 보유 한도(" + limit.toPlainString() + ")를 초과합니다.");
+        }
         balance = balance.add(amount);
+    }
+
+    public static BigDecimal maxBalance(Currency currency) {
+        return Objects.requireNonNull(MAX_BALANCE.get(currency), "보유 한도 미정의 통화: " + currency);
     }
 
     public void decrease(BigDecimal amount) {

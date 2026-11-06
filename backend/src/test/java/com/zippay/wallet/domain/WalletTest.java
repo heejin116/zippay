@@ -2,6 +2,7 @@ package com.zippay.wallet.domain;
 
 import com.zippay.common.money.Currency;
 import com.zippay.common.money.InvalidAmountException;
+import com.zippay.wallet.exception.BalanceLimitExceededException;
 import com.zippay.wallet.exception.InsufficientBalanceException;
 import org.junit.jupiter.api.Test;
 
@@ -68,5 +69,22 @@ class WalletTest {
 
         usd.increase(new BigDecimal("1.25"));
         assertThat(usd.getBalance()).isEqualByComparingTo("1.25");
+    }
+
+    @Test
+    void increase_up_to_balance_limit_is_allowed_and_beyond_is_rejected_without_change() {
+        Wallet wallet = Wallet.create(1L, Currency.KRW);
+        wallet.increase(new BigDecimal("2000000"));   // 보유 한도 정확히 = 허용
+
+        assertThatThrownBy(() -> wallet.increase(BigDecimal.ONE))
+                .isInstanceOf(BalanceLimitExceededException.class);
+        assertThat(wallet.getBalance()).isEqualByComparingTo("2000000");
+    }
+
+    @Test
+    void every_currency_has_a_balance_limit() {
+        for (Currency c : Currency.values()) {
+            assertThat(Wallet.maxBalance(c)).isPositive();
+        }
     }
 }
