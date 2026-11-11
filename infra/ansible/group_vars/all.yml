@@ -16,7 +16,7 @@ db_backup_mount: /backup
 
 # SSH 허용 대역. 비워 두면 지금 접속한 VPN 주소의 /24를 허용한다(잠김 방지).
 # VPN 대역을 확인하면 명시적으로 적는다. 예: ["10.8.0.0/24"]
-ssh_allowed_cidrs: []
+ssh_allowed_cidrs: ["10.0.0.0/24"]
 
 # 인벤토리에서 계산되는 주소
 lb_ip: "{{ hostvars[groups['lb'][0]].ansible_host }}"

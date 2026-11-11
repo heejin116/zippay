@@ -11,11 +11,23 @@
         quiet: true
       run_once: true
 
+    # sudo(become)는 환경변수를 초기화해 SSH_CLIENT가 사라진다 → 일반 사용자 셸에서 읽는다
+    - name: 접속한 클라이언트(VPN) 주소 확인
+      ansible.builtin.shell: echo "${SSH_CLIENT%% *}"
+      become: false
+      register: _client
+      changed_when: false
+
     - name: SSH 허용 대역 결정
       ansible.builtin.set_fact:
         _ssh_cidrs: >-
           {{ ssh_allowed_cidrs if ssh_allowed_cidrs | length > 0
-             else [(ansible_env.SSH_CLIENT.split()[0].split('.')[:3] | join('.')) ~ '.0/24'] }}
+             else [(_client.stdout.split('.')[:3] | join('.')) ~ '.0/24'] }}
+
+    - name: SSH 허용 대역 출력 (기록용)
+      ansible.builtin.debug:
+        msg: "클라이언트 {{ _client.stdout }} → SSH 허용 {{ _ssh_cidrs }}"
+      run_once: true
 
     - name: ufw 설치
       ansible.builtin.apt:
