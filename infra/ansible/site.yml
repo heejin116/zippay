@@ -1,0 +1,241 @@
+# 전체 구성: ansible-playbook site.yml
+# 두 번째 실행에서 changed=0 이면 멱등성 확인.
+- name: 공통 — 패키지, 방화벽(ufw) 기본 정책
+  hosts: all
+  become: true
+  vars_files: [secrets.yml]
+  tasks:
+    - name: 시크릿 변수 확인
+      ansible.builtin.assert:
+        that: [db_password | length > 0, jwt_secret | length > 0]
+        quiet: true
+      run_once: true
+
+    - name: SSH 허용 대역 결정
+      ansible.builtin.set_fact:
+        _ssh_cidrs: >-
+          {{ ssh_allowed_cidrs if ssh_allowed_cidrs | length > 0
+             else [(ansible_env.SSH_CLIENT.split()[0].split('.')[:3] | join('.')) ~ '.0/24'] }}
+
+    - name: ufw 설치
+      ansible.builtin.apt:
+        name: ufw
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: SSH 허용 (VPN 대역만)
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: "22"
+        src: "{{ item }}"
+      loop: "{{ _ssh_cidrs }}"
+
+    - name: 기본 정책 — 들어오는 연결 거부, ufw 활성화
+      community.general.ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+
+- name: DB — 데이터·백업 디스크, PostgreSQL
+  hosts: db
+  become: true
+  vars_files: [secrets.yml]
+  tasks:
+    - name: 디스크 장치 확인 (Terraform device_id 1·2)
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: ["{{ db_data_device }}", "{{ db_backup_device }}"]
+      register: _disks
+      failed_when: not _disks.stat.exists
+
+    - name: 파일시스템 생성 (이미 있으면 건너뜀)
+      community.general.filesystem:
+        dev: "{{ item }}"
+        fstype: ext4
+      loop: ["{{ db_data_device }}", "{{ db_backup_device }}"]
+
+    # 패키지 설치 전에 마운트해야 클러스터가 데이터 디스크에 만들어진다
+    - name: 데이터 디스크를 /var/lib/postgresql에 마운트
+      ansible.posix.mount:
+        path: /var/lib/postgresql
+        src: "{{ db_data_device }}"
+        fstype: ext4
+        opts: defaults,nofail
+        state: mounted
+
+    - name: 백업 디스크 마운트
+      ansible.posix.mount:
+        path: "{{ db_backup_mount }}"
+        src: "{{ db_backup_device }}"
+        fstype: ext4
+        opts: defaults,nofail
+        state: mounted
+
+    - name: PostgreSQL 16 설치
+      ansible.builtin.apt:
+        name: [postgresql-16, python3-psycopg2, acl]
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: 외부 접속 수신
+      ansible.builtin.lineinfile:
+        path: /etc/postgresql/16/main/postgresql.conf
+        regexp: "^#?listen_addresses"
+        line: "listen_addresses = '*'"
+      notify: restart postgresql
+
+    - name: pg_hba — web VM에서만 zippay DB 접속 허용
+      ansible.builtin.blockinfile:
+        path: /etc/postgresql/16/main/pg_hba.conf
+        marker: "# {mark} zippay web 계층 (Ansible 관리)"
+        block: |
+          {% for ip in web_ips %}
+          host  {{ db_name }}  {{ db_user }}  {{ ip }}/32  scram-sha-256
+          {% endfor %}
+      notify: reload postgresql
+
+    - name: 앱 계정
+      community.postgresql.postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+      become_user: postgres
+      no_log: true
+
+    - name: 앱 DB (소유자 = 앱 계정, 스키마는 앱의 Flyway가 만든다)
+      community.postgresql.postgresql_db:
+        name: "{{ db_name }}"
+        owner: "{{ db_user }}"
+      become_user: postgres
+
+    - name: 5432는 web VM에서만
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: "5432"
+        src: "{{ item }}"
+      loop: "{{ web_ips }}"
+
+  handlers:
+    - name: restart postgresql
+      ansible.builtin.service: {name: postgresql, state: restarted}
+    - name: reload postgresql
+      ansible.builtin.service: {name: postgresql, state: reloaded}
+
+- name: web — Docker, zippay 앱 계층
+  hosts: web
+  become: true
+  vars_files: [secrets.yml]
+  tasks:
+    - name: 이미지 태그 확인
+      ansible.builtin.assert:
+        that: [image_repo | length > 0, image_tag | length > 0]
+        fail_msg: "IMAGE_REPO, IMAGE_TAG 환경변수를 지정하세요 (예: IMAGE_TAG=$(git rev-parse HEAD))"
+        quiet: true
+
+    - name: Docker 설치
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose-v2]
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Docker 서비스
+      ansible.builtin.service: {name: docker, state: started, enabled: true}
+
+    - name: 앱 디렉터리
+      ansible.builtin.file: {path: "{{ app_dir }}", state: directory, mode: "0750"}
+
+    - name: compose 파일
+      ansible.builtin.copy:
+        src: ../compose/docker-compose.web.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        mode: "0640"
+
+    - name: 이미지 태그 (.env — compose가 읽는다)
+      ansible.builtin.copy:
+        dest: "{{ app_dir }}/.env"
+        content: |
+          IMAGE_REPO={{ image_repo }}
+          IMAGE_TAG={{ image_tag }}
+        mode: "0640"
+
+    - name: 백엔드 시크릿 (0600, 저장소 밖)
+      ansible.builtin.template:
+        src: templates/backend.env.j2
+        dest: "{{ app_dir }}/backend.env"
+        mode: "0600"
+      no_log: true
+
+    - name: 앱 기동
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        pull: missing
+        state: present
+
+    - name: 백엔드 헬스체크
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ backend_port }}/actuator/health"
+      register: _health
+      until: _health.status == 200
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: 앱 포트는 LB에서만
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: "{{ item }}"
+        src: "{{ lb_ip }}"
+      loop: ["{{ backend_port }}", "{{ frontend_port }}"]
+
+- name: LB — nginx, TLS 종료, 경로 분기
+  hosts: lb
+  become: true
+  tasks:
+    - name: nginx 설치
+      ansible.builtin.apt:
+        name: nginx
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: 인증서 디렉터리
+      ansible.builtin.file: {path: /etc/nginx/tls, state: directory, mode: "0700"}
+
+    - name: 자체 서명 인증서 (한 번만 생성)
+      ansible.builtin.command:
+        cmd: >-
+          openssl req -x509 -nodes -newkey rsa:2048 -days 365
+          -keyout /etc/nginx/tls/zippay.key -out /etc/nginx/tls/zippay.crt
+          -subj "/CN=zippay" -addext "subjectAltName=IP:{{ ansible_host }}"
+        creates: /etc/nginx/tls/zippay.crt
+      notify: reload nginx
+
+    - name: 사이트 설정
+      ansible.builtin.template:
+        src: templates/lb.conf.j2
+        dest: /etc/nginx/sites-available/zippay
+        mode: "0644"
+      notify: reload nginx
+
+    - name: 사이트 활성화
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/zippay
+        dest: /etc/nginx/sites-enabled/zippay
+        state: link
+      notify: reload nginx
+
+    - name: 기본 사이트 비활성화
+      ansible.builtin.file: {path: /etc/nginx/sites-enabled/default, state: absent}
+      notify: reload nginx
+
+    - name: 80·443 공개
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: "{{ item }}"
+      loop: ["80", "443"]
+
+  handlers:
+    - name: reload nginx
+      ansible.builtin.shell: nginx -t && systemctl reload nginx

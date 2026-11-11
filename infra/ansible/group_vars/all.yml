@@ -1,0 +1,24 @@
+# 공통 변수. 시크릿은 여기 두지 않는다 → secrets.yml (git 제외, secrets.yml.example 참고)
+
+# 배포할 이미지 (GitHub Actions가 푸시한 커밋 SHA 태그)
+image_repo: "{{ lookup('env', 'IMAGE_REPO') }}"
+image_tag: "{{ lookup('env', 'IMAGE_TAG') }}"
+
+app_dir: /opt/zippay
+backend_port: 8080
+frontend_port: 8081
+
+db_name: zippay
+db_user: zippay
+db_data_device: /dev/vdb     # Terraform device_id = 1
+db_backup_device: /dev/vdc   # Terraform device_id = 2
+db_backup_mount: /backup
+
+# SSH 허용 대역. 비워 두면 지금 접속한 VPN 주소의 /24를 허용한다(잠김 방지).
+# VPN 대역을 확인하면 명시적으로 적는다. 예: ["10.8.0.0/24"]
+ssh_allowed_cidrs: []
+
+# 인벤토리에서 계산되는 주소
+lb_ip: "{{ hostvars[groups['lb'][0]].ansible_host }}"
+web_ips: "{{ groups['web'] | map('extract', hostvars, 'ansible_host') | list }}"
+db_ip: "{{ hostvars[groups['db'][0]].ansible_host }}"

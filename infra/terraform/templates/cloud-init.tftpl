@@ -1,0 +1,16 @@
+#cloud-config
+# 역할: ${role}
+# 최초 부팅 1회만 실행. 소프트웨어 설치·설정은 Ansible이 맡는다(프로비저닝과 구성 관리 분리).
+ssh_pwauth: false
+# CloudStack keypair 주입이 실패해도 잠기지 않도록 cloud-init으로도 키를 넣는다
+ssh_authorized_keys:
+  - ${ssh_key}
+disable_root: true
+package_update: true
+packages:
+  - python3
+write_files:
+  - path: /etc/zippay-role
+    permissions: '0644'
+    content: |
+      ${role}

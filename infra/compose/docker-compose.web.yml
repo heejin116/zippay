@@ -1,16 +1,19 @@
-# web VM(web01·web02)에서 도는 앱 계층. Ansible이 /opt/zippay/에 이 파일을 두고 실행한다.
-# 이미지는 GitHub Actions가 빌드한 커밋 SHA 태그를 쓴다 (latest 금지).
-#   IMAGE_REPO=<dockerhub 계정> IMAGE_TAG=<커밋 SHA> docker compose -f docker-compose.web.yml up -d
+# web VM(web01·web02)에서 도는 앱 계층. Ansible이 /opt/zippay/docker-compose.yml로 배치한다.
+# 이미지는 GitHub Actions가 빌드한 커밋 SHA 태그 (latest 금지).
+#
+# network_mode: host 인 이유:
+#   Docker가 ports:로 공개한 포트는 iptables DOCKER 체인을 타서 ufw 규칙을 우회한다.
+#   이 환경은 보안 그룹이 없어 ufw가 유일한 계층 간 방화벽이므로, 호스트 네트워크로 띄워 ufw가 그대로 적용되게 한다.
 services:
   backend:
     image: ${IMAGE_REPO:?IMAGE_REPO 필요}/zippay-backend:${IMAGE_TAG:?IMAGE_TAG 필요}
-    env_file: /opt/zippay/backend.env      # DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET — 저장소 밖, Ansible이 배치
-    ports:
-      - "8080:8080"                        # 보안 규칙으로 LB VM에서만 접근 허용
+    network_mode: host                     # :8080
+    env_file: /opt/zippay/backend.env      # DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET (0600, 저장소 밖)
     restart: unless-stopped
 
   frontend:
     image: ${IMAGE_REPO}/zippay-frontend:${IMAGE_TAG}
-    ports:
-      - "8081:8080"
+    network_mode: host
+    environment:
+      NGINX_PORT: "8081"
     restart: unless-stopped

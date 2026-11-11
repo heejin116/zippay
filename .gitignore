@@ -33,3 +33,5 @@ frontend/.vite/
 kubeconfig*
 *.pem
 *.key
+infra/ansible/inventory.ini
+infra/ansible/secrets.yml

@@ -1,0 +1,42 @@
+# Ansible 관리 파일. web VM 2대로 분산, TLS 종료, 경로 분기(Phase 2 Ingress와 같은 구조)
+upstream backend {
+{% for ip in web_ips %}
+    server {{ ip }}:{{ backend_port }} max_fails=1 fail_timeout=10s;
+{% endfor %}
+}
+upstream frontend {
+{% for ip in web_ips %}
+    server {{ ip }}:{{ frontend_port }} max_fails=1 fail_timeout=10s;
+{% endfor %}
+}
+
+server {
+    listen 80 default_server;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl default_server;
+    server_tokens off;
+    ssl_certificate     /etc/nginx/tls/zippay.crt;
+    ssl_certificate_key /etc/nginx/tls/zippay.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # 한 대가 죽으면 다른 대로 재시도. POST(충전 등)는 nginx 기본값대로 재시도하지 않는다 — 결제 중복 방지
+    proxy_next_upstream error timeout http_502 http_503;
+    proxy_connect_timeout 2s;
+
+    location /actuator/ { return 404; }
+
+    location /api/ {
+        proxy_pass http://backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://frontend;
+        proxy_set_header Host $host;
+    }
+}
