@@ -67,6 +67,11 @@ export async function apiRaw<T>(path: string, options: RequestOptions = {}): Pro
 
   const json = parseJson(await res.text())
 
+  // 502/503/504: dev에선 Vite 프록시, 배포에선 리버스 프록시가 백엔드에 닿지 못한 경우 → 네트워크 오류와 같게 안내
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    throw new ApiError(res.status, 'BACKEND_UNAVAILABLE', '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인하세요.')
+  }
+
   if (!res.ok) {
     const err = json as { code?: string; message?: string } | undefined
     throw new ApiError(
