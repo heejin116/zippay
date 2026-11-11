@@ -1,0 +1,40 @@
+# 로컬 전체 실행 (Mac). web VM 배포 구성을 로컬에서 미리 검증하는 용도.
+#   docker compose -f infra/compose/docker-compose.local.yml up --build
+#   → http://localhost  (Chrome 권장: localhost는 Secure 쿠키가 HTTP에서도 동작)
+# edge = LB VM 역할을 흉내 내는 nginx. /api → backend, / → frontend
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: zippay
+      POSTGRES_USER: zippay
+      POSTGRES_PASSWORD: zippay   # 로컬 전용 값
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zippay -d zippay"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ../../backend
+    env_file: ../../backend/.env          # JWT_SECRET, DB_USERNAME, DB_PASSWORD (git 추적 제외 파일)
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/zippay
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ../../frontend
+
+  edge:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./edge.local.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [backend, frontend]
+
+volumes:
+  pgdata:

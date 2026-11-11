@@ -23,3 +23,13 @@ frontend/.vite/
 
 # Logs
 *.log
+
+# Infra secrets/state (커밋되면 과제 10점 감점)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+kubeconfig*
+*.pem
+*.key
