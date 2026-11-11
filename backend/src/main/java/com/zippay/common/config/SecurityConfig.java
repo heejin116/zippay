@@ -20,7 +20,8 @@ public class SecurityConfig {
     @Order(1)
     SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/auth/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
+                .securityMatcher("/api/auth/**", "/error", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
+                        "/actuator/health", "/actuator/health/**")  // LB 헬스체크·K8s probe (외부 노출은 LB에서 차단)
                 .csrf(csrf -> csrf.disable())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

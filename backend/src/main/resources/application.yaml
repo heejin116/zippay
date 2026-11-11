@@ -12,3 +12,13 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
   access-token-ttl: 15m
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health  # 헬스체크만 노출. 메트릭(prometheus)은 Phase 2 모니터링에서 추가
+  endpoint:
+    health:
+      probes:
+        enabled: true    # /actuator/health/liveness, /actuator/health/readiness (K8s probe용)
+      show-details: never
