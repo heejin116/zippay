@@ -38,3 +38,6 @@ infra/ansible/secrets.yml
 
 # 과제 증빙 원본(IP·계정명 등 마스킹 전) — 마스킹본만 나중에 따로 추가
 infra/evidence/
+
+# Python 캐시 (측정 스크립트)
+__pycache__/
