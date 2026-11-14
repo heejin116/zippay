@@ -120,6 +120,28 @@
         owner: "{{ db_user }}"
       become_user: postgres
 
+    # 백업: 원본(데이터 디스크)과 다른 디스크에 주기적으로 논리 백업. RPO 상한 = 백업 주기
+    - name: 백업 디렉터리 (postgres 소유)
+      ansible.builtin.file:
+        path: "{{ db_backup_mount }}/pg"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "0700"
+
+    - name: 백업 스크립트
+      ansible.builtin.template:
+        src: templates/zippay-backup.sh.j2
+        dest: /usr/local/bin/zippay-backup.sh
+        mode: "0755"
+
+    - name: 주기 백업 (cron, postgres 계정)
+      ansible.builtin.cron:
+        name: zippay pg_dump
+        user: postgres
+        minute: "{{ db_backup_cron_minute }}"
+        job: /usr/local/bin/zippay-backup.sh
+
     - name: 5432는 web VM에서만
       community.general.ufw:
         rule: allow

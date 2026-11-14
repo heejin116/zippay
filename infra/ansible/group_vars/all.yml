@@ -13,6 +13,8 @@ db_user: zippay
 db_data_device: /dev/vdb     # Terraform device_id = 1
 db_backup_device: /dev/vdc   # Terraform device_id = 2
 db_backup_mount: /backup
+db_backup_cron_minute: "*/15"   # 15분마다 → RPO 상한 15분
+db_backup_keep: 96               # 최근 96개(약 하루치)만 보관
 
 # SSH 허용 대역. 비워 두면 지금 접속한 VPN 주소의 /24를 허용한다(잠김 방지).
 # VPN 대역을 확인하면 명시적으로 적는다. 예: ["10.8.0.0/24"]

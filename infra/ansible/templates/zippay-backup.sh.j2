@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Ansible 관리 파일. zippay DB 논리 백업 → {{ db_backup_mount }}/pg (cron이 {{ db_backup_cron_minute }}분 주기로 실행)
+# 원본은 데이터 디스크(/var/lib/postgresql), 백업은 별도 디스크. 같은 VM이라 VM 단위 장애에는 취약 → 다음 단계: 외부 저장소로 복사
+set -euo pipefail
+DIR="{{ db_backup_mount }}/pg"
+TS="$(date +%Y%m%d_%H%M%S)"
+pg_dump -Fc -d {{ db_name }} -f "$DIR/{{ db_name }}_$TS.dump.tmp"
+mv "$DIR/{{ db_name }}_$TS.dump.tmp" "$DIR/{{ db_name }}_$TS.dump"   # 완성된 파일만 .dump 이름을 갖는다
+ls -1t "$DIR"/*.dump | tail -n +$(({{ db_backup_keep }} + 1)) | xargs -r rm --
+echo "$(date -Is) ok {{ db_name }}_$TS.dump $(stat -c %s "$DIR/{{ db_name }}_$TS.dump")B" >> "$DIR/backup.log"
