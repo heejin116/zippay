@@ -53,3 +53,39 @@ variable "db_disk_offering" {
   type        = string
   default     = "Small"
 }
+
+variable "isolated_cidr" {
+  description = "격리망(lb·DB) 대역"
+  type        = string
+  default     = "192.168.10.0/24"
+}
+
+variable "isolated_network_offering" {
+  description = "격리망 network offering name (probe에서 동작 확인)"
+  type        = string
+  default     = "DefaultIsolatedNetworkOfferingWithSourceNatService"
+}
+
+variable "admin_cidrs" {
+  description = "관리 SSH 허용 출발지. VPN 사용자는 VR에서 10.0.0.10으로 보인다(W1 강사 실측·Ansible 출력 일치)"
+  type        = list(string)
+  default     = ["10.0.0.10/32"]
+
+  validation {
+    condition     = !contains(var.admin_cidrs, "0.0.0.0/0")
+    error_message = "관리 SSH를 0.0.0.0/0에 열지 않는다."
+  }
+}
+
+variable "app_ports" {
+  description = "lb → 앱 계층 TCP 포트 (Egress 허용). VM 단계: backend 8080, frontend 8081"
+  type        = list(string)
+  default     = ["8080", "8081"]
+}
+
+variable "db_ssh_port" {
+  description = "DB SSH 포트포워딩 공개 포트 (DESIGN.md: 2211 → db-primary:22)"
+  type        = number
+  default     = 2211
+}
+

@@ -14,7 +14,7 @@ terraform -chdir="$ROOT/terraform" apply -auto-approve
 
 echo "== [2/4] Ansible 인벤토리 생성"
 terraform -chdir="$ROOT/terraform" output -raw ansible_inventory > "$ROOT/ansible/inventory.ini"
-LB_IP="$(terraform -chdir="$ROOT/terraform" output -raw lb_ip)"
+LB_IP="$(terraform -chdir="$ROOT/terraform" output -raw lb_ip)"   # 격리망 lb의 static NAT 공인 IP
 
 echo "== [3/4] SSH 열릴 때까지 대기 후 Ansible"
 cd "$ROOT/ansible"

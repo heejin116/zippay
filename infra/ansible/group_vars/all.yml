@@ -21,6 +21,11 @@ db_backup_keep: 96               # 최근 96개(약 하루치)만 보관
 ssh_allowed_cidrs: ["10.0.0.0/24"]
 
 # 인벤토리에서 계산되는 주소
+# lb_ip: lb의 static NAT 공인 IP — 접속 주소이자 lb가 앱 계층으로 나갈 때의 출발지(web ufw가 이 IP만 허용)
+# db_ip: DB 앞 VR 공인 IP — 앱은 포트포워딩된 5432로 접속(backend.env DB_URL)
 lb_ip: "{{ hostvars[groups['lb'][0]].ansible_host }}"
 web_ips: "{{ groups['web'] | map('extract', hostvars, 'ansible_host') | list }}"
 db_ip: "{{ hostvars[groups['db'][0]].ansible_host }}"
+# DB에 접속하는 앱 계층 주소(pg_hba·ufw 5432). VR 포트포워딩은 목적지만 바꾸고(DNAT) 출발지는 그대로라고 보고 web IP를 쓴다.
+# 첫 배포에서 연결이 막히면 DB에서 실제 출발지를 확인해 여기만 바꾼다(DESIGN.md 열린 질문).
+db_client_ips: "{{ web_ips }}"

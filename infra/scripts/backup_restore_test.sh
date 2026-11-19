@@ -5,10 +5,13 @@
 # 사용 (zippay 루트, VPN 연결): ./infra/scripts/backup_restore_test.sh | tee infra/evidence/$(date +%Y%m%d_%H%M%S)_backup_restore.log
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DB_IP="$(awk '/^\[db\]/{getline; sub(/.*ansible_host=/,""); print $1}' "$ROOT/ansible/inventory.ini")"
-echo "DB $DB_IP · $(date -Iseconds)"
+DB_LINE="$(awk '/^\[db\]/{getline; print}' "$ROOT/ansible/inventory.ini")"
+DB_IP="$(sed -E 's/.*ansible_host=([^ ]+).*/\1/' <<<"$DB_LINE")"
+DB_PORT="$(grep -oE 'ansible_port=[0-9]+' <<<"$DB_LINE" | cut -d= -f2 || true)"   # 격리망 DB는 VR 포트포워딩(2211)
+DB_PORT="${DB_PORT:-22}"
+echo "DB $DB_IP:$DB_PORT · $(date -Iseconds)"
 
-ssh -o StrictHostKeyChecking=accept-new "ubuntu@$DB_IP" 'sudo -u postgres bash -s' <<'REMOTE'
+ssh -p "$DB_PORT" -o StrictHostKeyChecking=accept-new "ubuntu@$DB_IP" 'sudo -u postgres bash -s' <<'REMOTE'
 set -euo pipefail
 cd /tmp
 DB=zippay; TEST=zippay_restore_test; DIR=/backup/pg
