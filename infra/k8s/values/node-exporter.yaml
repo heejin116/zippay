@@ -1,0 +1,21 @@
+# node_exporter DaemonSet — worker 노드 지표를 lb의 Prometheus가 가져간다(VM 단계 web의 node_exporter와 같은 역할·포트)
+# hostNetwork(차트 기본값)라 노드 IP:9100으로 열린다. VR Egress 9100은 VM 단계(monitoring_ports)에서 이미 허용.
+# 한계: hostNetwork 파드에는 NetworkPolicy가 적용되지 않아 9100은 Shared Network에서 닿는다(VM 단계는 ufw로 lb만 허용) → 리포트에 명시
+hostNetwork: true
+service:
+  port: 9100
+# worker만 (비교 대상이 web VM 2대). 차트 기본 toleration(NoSchedule)을 비워 control 노드에는 올리지 않는다
+tolerations: []
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/control-plane
+              operator: DoesNotExist
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi

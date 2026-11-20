@@ -20,5 +20,10 @@ scrape_configs:
       - targets: ["{{ hostvars[h].ansible_host }}:{{ node_exporter_port }}"]
         labels: { host: {{ h.split('-')[0] }} }
 {% endfor %}
+{# K8s 단계 worker (node-exporter DaemonSet, hostNetwork). web01·web02와 같은 대시보드에서 비교 #}
+{% for ip in k8s_node_ip_list %}
+      - targets: ["{{ ip }}:{{ node_exporter_port }}"]
+        labels: { host: k8s-w{{ loop.index }} }
+{% endfor %}
       - targets: ["{{ db_private_ip }}:{{ node_exporter_port }}"]   # 같은 격리망 — 사설 IP로 직접
         labels: { host: {{ groups['db'][0].split('-')[0] }} }
