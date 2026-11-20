@@ -86,7 +86,7 @@ module "edge" {
 
   network_id       = module.network.id
   network_cidr     = module.network.cidr
-  app_ports        = var.app_ports
+  app_ports        = concat(var.app_ports, var.k8s_enabled ? [tostring(var.k8s_ingress_nodeport)] : []) # K8s 단계: lb → Ingress NodePort
   monitoring_ports = var.monitoring_ports
   zone             = data.cloudstack_zone.dku.name
   lb_id            = module.lb.ids[0]

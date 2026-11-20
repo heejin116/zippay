@@ -33,6 +33,12 @@ db_ip: "{{ hostvars[groups['db'][0]].ansible_host }}"
 k8s_node_ip_list: "{{ (k8s_node_ips | from_json) if (k8s_node_ips | default([])) is string else (k8s_node_ips | default([])) }}"
 db_client_ips: "{{ web_ips + k8s_node_ip_list }}"
 
+# lb upstream 대상 선택: vm = web VM(8080·8081) / k8s = worker 노드의 Ingress NodePort
+# 바꾸기: ansible-playbook site.yml --limit lb -e app_stage=k8s  (되돌리기: -e app_stage=vm)
+# 같은 lb·DB·k6 스크립트로 두 단계를 번갈아 잰다. 컨트롤 노드는 앱 파드가 없어 넣지 않는다.
+app_stage: vm
+k8s_ingress_nodeport: 30080
+
 # 관측 (6주차 구성: node_exporter → Prometheus(pull) → Grafana, 모두 lb에)
 lb_private_ip: "{{ hostvars[groups['lb'][0]].private_ip }}"
 db_private_ip: "{{ hostvars[groups['db'][0]].private_ip }}"

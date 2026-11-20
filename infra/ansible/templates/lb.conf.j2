@@ -1,10 +1,24 @@
-# Ansible 관리 파일. web VM 2대로 분산, TLS 종료, 경로 분기(Phase 2 Ingress와 같은 구조)
+# Ansible 관리 파일. 앱 계층(app_stage: web VM 2대 또는 K8s worker 2대)으로 분산, TLS 종료, 경로 분기(Phase 2 Ingress와 같은 구조)
 
 # 요청별 시간 기록 — k6가 잰 시간을 구간으로 나눠 본다
 #   rt  = request_time: lb가 요청 첫 바이트를 받은 뒤 응답을 다 보낼 때까지 (lb 처리 + upstream)
 #   urt = upstream_response_time: lb → web 백엔드 응답 시간 (재시도하면 쉼표로 여러 값)
 #   k6 시간 - rt ≈ lb 앞단(클라이언트·VPN·TLS 연결) 구간
 log_format zippay_timing '$time_iso8601 $status "$request_method $uri" rt=$request_time urt=$upstream_response_time uct=$upstream_connect_time ua=$upstream_addr';
+{% if app_stage == 'k8s' %}
+# app_stage=k8s: Ingress가 /api·/ 를 나누므로 두 upstream 모두 worker 노드의 Ingress NodePort
+upstream backend {
+{% for ip in k8s_node_ip_list %}
+    server {{ ip }}:{{ k8s_ingress_nodeport }} max_fails=1 fail_timeout=10s;
+{% endfor %}
+}
+upstream frontend {
+{% for ip in k8s_node_ip_list %}
+    server {{ ip }}:{{ k8s_ingress_nodeport }} max_fails=1 fail_timeout=10s;
+{% endfor %}
+}
+{% else %}
+# app_stage=vm: web VM의 backend·frontend 포트
 upstream backend {
 {% for ip in web_ips %}
     server {{ ip }}:{{ backend_port }} max_fails=1 fail_timeout=10s;
@@ -15,6 +29,7 @@ upstream frontend {
     server {{ ip }}:{{ frontend_port }} max_fails=1 fail_timeout=10s;
 {% endfor %}
 }
+{% endif %}
 
 server {
     listen 80 default_server;

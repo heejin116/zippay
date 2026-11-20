@@ -39,10 +39,9 @@ output "ansible_inventory" {
 
 # ---- K8s 단계 ----
 output "k8s_cluster" {
-  description = "CKS 클러스터 이름·상태·API 엔드포인트 (k8s_enabled=false면 null)"
+  description = "CKS 클러스터 이름·상태 (k8s_enabled=false면 null). 노드 IP는 provider가 주지 않는다 → kubectl get nodes -o wide"
   value = var.k8s_enabled ? {
-    name        = module.k8s[0].name
-    state       = module.k8s[0].state
-    endpoint_ip = module.k8s[0].endpoint_ip
+    name  = module.k8s[0].name
+    state = module.k8s[0].state
   } : null
 }

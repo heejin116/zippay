@@ -286,6 +286,14 @@
   hosts: lb
   become: true
   tasks:
+    - name: app_stage 확인
+      ansible.builtin.assert:
+        that:
+          - app_stage in ['vm', 'k8s']
+          - app_stage == 'vm' or (k8s_node_ip_list | length) > 0
+        fail_msg: "app_stage는 vm 또는 k8s. k8s면 terraform.tfvars의 k8s_node_ips를 채우고 인벤토리를 다시 만든다"
+        quiet: true
+
     - name: nginx 설치
       ansible.builtin.apt:
         name: nginx

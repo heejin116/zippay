@@ -139,3 +139,9 @@ variable "k8s_node_ips" {
     error_message = "k8s_node_ips에는 IPv4 주소만 넣는다 (/32는 붙이지 않는다)."
   }
 }
+
+variable "k8s_ingress_nodeport" {
+  description = "ingress-nginx NodePort (infra/k8s/values/ingress-nginx.yaml와 같은 값). lb가 나가도록 Egress에 연다"
+  type        = number
+  default     = 30080
+}
