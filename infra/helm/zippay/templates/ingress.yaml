@@ -1,0 +1,25 @@
+# lb VM이 하던 경로 분기를 클러스터 안에서: /api → backend, / → frontend
+# 같은 출처(same-origin)를 유지해 HttpOnly 쿠키 인증이 그대로 동작한다.
+# /actuator는 backend로 보내지 않는다(외부 노출 차단, lb에서도 404).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zippay
+  labels: {{- include "zippay.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: zippay-backend
+                port: { name: http }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zippay-frontend
+                port: { name: http }

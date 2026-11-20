@@ -94,3 +94,48 @@ variable "monitoring_ports" {
   type        = list(string)
   default     = ["9100"]
 }
+
+# ---- K8s 단계 (modules/k8s-cluster) ----
+variable "k8s_enabled" {
+  description = "CKS 클러스터 생성 여부. VM 단계와 동시에 띄워 같은 lb·DB로 비교한 뒤 web VM을 지운다"
+  type        = bool
+  default     = false
+}
+
+variable "k8s_version" {
+  description = "CKS Kubernetes 버전 이름 (W11과 같은 값)"
+  type        = string
+  default     = "Kubernetes_1.32.5_with_Calico"
+}
+
+variable "k8s_worker_count" {
+  description = "worker 노드 수. 2대 = web VM 2대와 같은 앱 자원(4 vCPU / 8GiB). 3대는 N+1 실측용"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.k8s_worker_count >= 2 && var.k8s_worker_count <= 3
+    error_message = "worker는 이중화를 위해 2대 이상, 자원 한도 때문에 3대 이하."
+  }
+}
+
+variable "k8s_node_root_disk_gb" {
+  description = "CKS 노드 루트 디스크(GB)"
+  type        = number
+  default     = 20
+}
+
+variable "k8s_node_ips" {
+  description = <<-EOT
+    worker 노드 IP 목록. DB 5432 허용 출발지에 더한다.
+    provider 0.5는 worker IP를 출력하지 않아 클러스터 생성 후 채우고 한 번 더 apply한다:
+    kubectl get nodes -o wide 의 INTERNAL-IP (또는 콘솔 > 인스턴스 <클러스터>-node-*)
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for ip in var.k8s_node_ips : can(cidrhost("${ip}/32", 0))])
+    error_message = "k8s_node_ips에는 IPv4 주소만 넣는다 (/32는 붙이지 않는다)."
+  }
+}

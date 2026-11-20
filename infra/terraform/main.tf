@@ -64,6 +64,23 @@ module "db" {
   }
 }
 
+# K8s 단계 앱 계층. web VM을 남겨 둔 채 만들어 같은 lb·DB로 비교한다.
+# 키페어는 VM과 같은 zippay-<학번>을 참조한다(같은 공개키는 다른 이름으로 중복 등록 불가).
+module "k8s" {
+  source = "./modules/k8s-cluster"
+  count  = var.k8s_enabled ? 1 : 0
+
+  name               = "k8s-${var.student_id}"
+  zone               = data.cloudstack_zone.dku.name
+  kubernetes_version = var.k8s_version
+  service_offering   = data.cloudstack_service_offering.medium.name
+  control_count      = 1
+  worker_count       = var.k8s_worker_count
+  network_id         = var.shared_network_id
+  node_root_disk_gb  = var.k8s_node_root_disk_gb
+  keypair            = cloudstack_ssh_keypair.admin.name
+}
+
 module "edge" {
   source = "./modules/edge"
 
@@ -75,7 +92,7 @@ module "edge" {
   lb_id            = module.lb.ids[0]
   db_id            = module.db.ids[0]
   admin_cidrs      = var.admin_cidrs
-  db_client_cidrs  = [for ip in module.web.ips : "${ip}/32"]
+  db_client_cidrs  = [for ip in concat(module.web.ips, var.k8s_node_ips) : "${ip}/32"] # VM 단계 web + K8s 단계 worker
   db_ssh_port      = var.db_ssh_port
 
   # 공인 IP는 격리망이 구현(첫 VM 배치)된 뒤에 할당된다 (probe에서 확인)

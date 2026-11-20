@@ -5,3 +5,8 @@ secret_key        = "<Secret Key>"
 student_id        = "<학번>"
 shared_network_id = "<Shared Network UUID>"
 ssh_public_key    = "<cat ~/.ssh/id_ed25519.pub 결과>"
+
+# K8s 단계 (기본 false). apply 전에 Dashboard에서 남은 자원 확인: control 1 + worker 2 = Medium 3대(6 vCPU / 12GiB)
+# k8s_enabled  = true
+# 클러스터 Running 후 kubectl get nodes -o wide 의 worker INTERNAL-IP를 넣고 다시 apply (DB 5432 허용)
+# k8s_node_ips = ["<worker1 IP>", "<worker2 IP>"]

@@ -1,0 +1,29 @@
+# ingress-nginx: 클러스터 입구. lb VM(격리망)이 worker 노드의 NodePort로 보낸다.
+# 이 환경은 LoadBalancer 타입이 <pending>으로 고정이라 NodePort를 쓴다(W11·W12).
+controller:
+  # 1개면 그 Pod가 있는 노드가 죽을 때 입구가 끊긴다 → 2개를 노드마다 하나씩
+  replicaCount: 2
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      # 기본값(Ignore)이면 taint가 붙은 control·drain된 노드도 개수에 넣어 남은 노드에 다시 뜨지 못한다
+      nodeTaintsPolicy: Honor
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+          app.kubernetes.io/component: controller
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30080 # 고정 — lb upstream과 VR Egress에 이 번호를 쓴다
+    enableHttps: false # TLS는 lb에서 종료한다
+  resources:
+    requests:
+      cpu: 100m
+      memory: 90Mi
+    limits:
+      memory: 256Mi
+  # lb가 넣은 X-Forwarded-For를 믿고 실제 클라이언트 IP를 백엔드에 넘긴다
+  config:
+    use-forwarded-headers: "true"

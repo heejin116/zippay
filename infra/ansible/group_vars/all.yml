@@ -28,7 +28,10 @@ web_ips: "{{ groups['web'] | map('extract', hostvars, 'ansible_host') | list }}"
 db_ip: "{{ hostvars[groups['db'][0]].ansible_host }}"
 # DB에 접속하는 앱 계층 주소(pg_hba·ufw 5432). VR 포트포워딩은 목적지만 바꾸고(DNAT) 출발지는 그대로라고 보고 web IP를 쓴다.
 # 첫 배포에서 연결이 막히면 DB에서 실제 출발지를 확인해 여기만 바꾼다(DESIGN.md 열린 질문).
-db_client_ips: "{{ web_ips }}"
+# DB 5432 허용: VM 단계 web + K8s 단계 worker (Pod가 나갈 때 Calico가 출발지를 노드 IP로 바꾼다 → ④에서 실측 확인)
+# 인벤토리 [all:vars]의 JSON 목록은 Ansible 버전에 따라 문자열 또는 리스트로 들어와서 둘 다 받는다
+k8s_node_ip_list: "{{ (k8s_node_ips | from_json) if (k8s_node_ips | default([])) is string else (k8s_node_ips | default([])) }}"
+db_client_ips: "{{ web_ips + k8s_node_ip_list }}"
 
 # 관측 (6주차 구성: node_exporter → Prometheus(pull) → Grafana, 모두 lb에)
 lb_private_ip: "{{ hostvars[groups['lb'][0]].private_ip }}"

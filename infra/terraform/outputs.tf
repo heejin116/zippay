@@ -32,6 +32,17 @@ output "ansible_inventory" {
     [for i, ip in module.web.ips : "${module.web.names[i]} ansible_host=${ip}"],
     ["", "[db]"],
     ["${module.db.names[0]} ansible_host=${module.edge.db_public_ip} ansible_port=${module.edge.db_ssh_port} private_ip=${module.db.ips[0]}"],
-    ["", "[all:vars]", "ansible_user=ubuntu", ""],
+    # k8s_node_ips: K8s worker IP(JSON). Ansible이 DB ufw·pg_hba 5432 허용에 web과 함께 넣는다
+    ["", "[all:vars]", "ansible_user=ubuntu", "k8s_node_ips=${jsonencode(var.k8s_node_ips)}", ""],
   ))
+}
+
+# ---- K8s 단계 ----
+output "k8s_cluster" {
+  description = "CKS 클러스터 이름·상태·API 엔드포인트 (k8s_enabled=false면 null)"
+  value = var.k8s_enabled ? {
+    name        = module.k8s[0].name
+    state       = module.k8s[0].state
+    endpoint_ip = module.k8s[0].endpoint_ip
+  } : null
 }

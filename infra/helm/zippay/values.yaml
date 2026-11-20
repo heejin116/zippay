@@ -1,0 +1,49 @@
+# 실제 값(Docker Hub 계정, 커밋 SHA, DB 주소)은 여기에 적지 않고 설치할 때 --set으로 넘긴다.
+# 시크릿(DB 계정, JWT 키)은 차트 밖에서 kubectl로 만든 Secret을 이름으로 참조한다.
+image:
+  repository: ""   # 필수: --set image.repository=<Docker Hub 계정>
+  tag: ""          # 필수: --set image.tag=<커밋 SHA> (latest 금지)
+  pullPolicy: IfNotPresent
+
+backend:
+  replicas: 2
+  port: 8080
+  dbUrl: ""                      # 필수: jdbc:postgresql://<db_ip>:5432/zippay (terraform output -raw db_ip)
+  existingSecret: zippay-backend # 키: DB_USERNAME, DB_PASSWORD, JWT_SECRET
+  # requests: 스케줄링·HPA 계산 기준. limits: 메모리만(JVM 힙 = 75% = 약 384MiB, Dockerfile MaxRAMPercentage).
+  # CPU limit은 두지 않는다 — web VM(2 vCPU)처럼 노드의 남는 CPU를 쓸 수 있게 해 VM과 같은 조건으로 비교하고, 스로틀링으로 p95가 튀는 것을 막는다.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+frontend:
+  replicas: 2
+  port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+ingress:
+  className: nginx
+
+# 노드 장애·drain 때 남은 노드에 앱 파드를 먼저 올린다(모니터링보다 우선)
+priorityClass:
+  create: true
+  name: zippay-app
+  value: 1000
+
+# drain할 때 backend·frontend가 동시에 0개가 되지 않게 한다
+pdb:
+  minAvailable: 1
+
+hpa:
+  enabled: false   # 개선 실험(HPA) 단계에서 켠다
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70

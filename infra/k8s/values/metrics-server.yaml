@@ -1,0 +1,4 @@
+# metrics-server: HPA·kubectl top의 지표 공급원 (W12 Part D와 같은 설정)
+args:
+  # CKS 노드의 kubelet 인증서가 자체 서명이라 검증을 끈다(W12). 실습 클러스터 한정, 운영에서는 인증서를 올바르게 구성한다.
+  - --kubelet-insecure-tls

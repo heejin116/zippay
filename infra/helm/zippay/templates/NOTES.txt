@@ -1,0 +1,3 @@
+zippay {{ .Values.image.tag }} 배포됨.
+  kubectl get pods -l app.kubernetes.io/part-of=zippay -o wide
+  curl -s http://<worker IP>:30080/api/... (VPN)  — lb 연결은 ④단계

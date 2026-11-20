@@ -1,0 +1,7 @@
+apiVersion: v2
+name: zippay
+description: zippay 앱 계층(backend·frontend) — lb·DB는 클러스터 밖 VM
+type: application
+version: 0.1.0
+# 이미지 태그는 커밋 SHA라 appVersion 대신 values의 image.tag로 넘긴다
+appVersion: "0.1.0"

@@ -1,0 +1,10 @@
+{{- if .Values.priorityClass.create }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.priorityClass.name }}
+  labels: {{- include "zippay.labels" . | nindent 4 }}
+value: {{ .Values.priorityClass.value }}
+globalDefault: false
+description: "zippay 결제 앱 파드 — 자원이 부족하면 모니터링보다 먼저 스케줄"
+{{- end }}

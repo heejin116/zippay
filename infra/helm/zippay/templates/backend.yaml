@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zippay-backend
+  labels: {{- include "zippay.labels" . | nindent 4 }}
+data:
+  DB_URL: {{ required "backend.dbUrl이 필요하다 (jdbc:postgresql://<db_ip>:5432/zippay)" .Values.backend.dbUrl | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zippay-backend
+  labels:
+    app.kubernetes.io/name: zippay-backend
+    {{- include "zippay.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.hpa.enabled }}
+  replicas: {{ .Values.backend.replicas }}   # HPA를 켜면 HPA가 개수를 정한다(helm upgrade가 되돌리지 않게 비움)
+  {{- end }}
+  revisionHistoryLimit: 5   # helm rollback·kubectl rollout undo 용
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zippay-backend
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0   # 새 파드가 Ready가 된 뒤에 옛 파드를 내린다(무중단 배포)
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zippay-backend
+        {{- include "zippay.labels" . | nindent 8 }}
+      annotations:
+        # ConfigMap이 바뀌면 파드를 다시 띄운다(환경변수는 시작할 때만 읽힌다)
+        checksum/config: {{ .Values.backend.dbUrl | sha256sum }}
+    spec:
+      {{- if .Values.priorityClass.create }}
+      priorityClassName: {{ .Values.priorityClass.name }}
+      {{- end }}
+      {{- include "zippay.spread" "zippay-backend" | nindent 6 }}
+      automountServiceAccountToken: false   # 앱이 K8s API를 쓰지 않는다
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001   # 이미지의 USER가 이름(app)이라 kubelet이 비루트를 확인하도록 숫자로 지정
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: backend
+          image: {{ include "zippay.image" (dict "root" . "app" "backend") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.port }}
+          envFrom:
+            - configMapRef:
+                name: zippay-backend
+            - secretRef:
+                name: {{ .Values.backend.existingSecret }}
+          # 시작이 느린 JVM: 최대 150초(5초 × 30)까지 기다린 뒤에 liveness를 시작한다
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:   # 멈춘 프로세스 → 재시작
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:  # 준비 안 된 파드엔 트래픽을 보내지 않는다
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          lifecycle:
+            # 종료 신호 전에 잠깐 기다려, Ingress가 이 파드를 목록에서 뺀 뒤에 내려가게 한다(배포·drain 중 실패 요청 방지)
+            preStop:
+              sleep:
+                seconds: 5
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+          {{- include "zippay.containerSecurity" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp   # Tomcat 작업 디렉터리 (루트 파일시스템은 읽기 전용)
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zippay-backend
+  labels: {{- include "zippay.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: zippay-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zippay-backend
+  labels: {{- include "zippay.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zippay-backend
