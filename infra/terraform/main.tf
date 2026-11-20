@@ -67,15 +67,16 @@ module "db" {
 module "edge" {
   source = "./modules/edge"
 
-  network_id      = module.network.id
-  network_cidr    = module.network.cidr
-  app_ports       = var.app_ports
-  zone            = data.cloudstack_zone.dku.name
-  lb_id           = module.lb.ids[0]
-  db_id           = module.db.ids[0]
-  admin_cidrs     = var.admin_cidrs
-  db_client_cidrs = [for ip in module.web.ips : "${ip}/32"]
-  db_ssh_port     = var.db_ssh_port
+  network_id       = module.network.id
+  network_cidr     = module.network.cidr
+  app_ports        = var.app_ports
+  monitoring_ports = var.monitoring_ports
+  zone             = data.cloudstack_zone.dku.name
+  lb_id            = module.lb.ids[0]
+  db_id            = module.db.ids[0]
+  admin_cidrs      = var.admin_cidrs
+  db_client_cidrs  = [for ip in module.web.ips : "${ip}/32"]
+  db_ssh_port      = var.db_ssh_port
 
   # 공인 IP는 격리망이 구현(첫 VM 배치)된 뒤에 할당된다 (probe에서 확인)
   depends_on = [module.lb, module.db]

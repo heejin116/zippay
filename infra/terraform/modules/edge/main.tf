@@ -29,6 +29,13 @@ resource "cloudstack_firewall" "lb" {
     protocol  = "tcp"
     ports     = ["22"]
   }
+
+  # 관측: Grafana(3000)·Prometheus(9090, k6 결과 수신 포함)는 lb에 둔다(6주차 배치). 관리 출발지만
+  rule {
+    cidr_list = var.admin_cidrs
+    protocol  = "tcp"
+    ports     = ["3000", "9090"]
+  }
 }
 
 # ---- db: 포트포워딩 ----
@@ -90,6 +97,6 @@ resource "cloudstack_egress_firewall" "this" {
   rule {
     cidr_list = [var.network_cidr]
     protocol  = "tcp"
-    ports     = concat(["53", "80", "443"], var.app_ports)
+    ports     = concat(["53", "80", "443"], var.app_ports, var.monitoring_ports)
   }
 }

@@ -49,6 +49,25 @@
         policy: deny
         direction: incoming
 
+    # 관측: 시스템 지표(CPU·메모리·디스크·네트워크)를 :9100/metrics로 노출 (6주차 A2)
+    - name: node_exporter 설치
+      ansible.builtin.apt:
+        name: prometheus-node-exporter
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: node_exporter 서비스
+      ansible.builtin.service: {name: prometheus-node-exporter, state: started, enabled: true}
+
+    # 인증이 없는 포트라 Prometheus(lb)에서만 연다. lb 자신은 localhost로 수집해 규칙이 필요 없다
+    - name: 9100은 Prometheus(lb)에서만
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: "{{ node_exporter_port }}"
+        src: "{{ prometheus_src }}"
+      when: inventory_hostname not in groups['lb']
+
 - name: DB — 데이터·백업 디스크, PostgreSQL
   hosts: db
   become: true
@@ -313,3 +332,149 @@
   handlers:
     - name: reload nginx
       ansible.builtin.shell: nginx -t && systemctl reload nginx
+
+- name: 관측 — Prometheus·Grafana·알림 룰 (lb, 6주차 구성)
+  hosts: lb
+  become: true
+  vars_files: [secrets.yml]
+  tasks:
+    - name: Grafana 비밀번호 확인
+      ansible.builtin.assert:
+        that: [grafana_admin_password is defined, grafana_admin_password | length >= 12]
+        fail_msg: "secrets.yml에 grafana_admin_password(12자 이상)를 넣으세요 (secrets.yml.example 참고)"
+        quiet: true
+
+    - name: Prometheus 설치
+      ansible.builtin.apt:
+        name: prometheus
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: 알림 룰 디렉터리
+      ansible.builtin.file: {path: /etc/prometheus/rules, state: directory, mode: "0755"}
+
+    - name: 알림 룰 (up == 0, 1분)
+      ansible.builtin.copy:
+        src: files/zippay-alerts.yml
+        dest: /etc/prometheus/rules/zippay-alerts.yml
+        mode: "0644"
+        validate: promtool check rules %s
+      notify: restart prometheus
+
+    - name: 수집 대상 (scrape_configs)
+      ansible.builtin.template:
+        src: templates/prometheus.yml.j2
+        dest: /etc/prometheus/prometheus.yml
+        mode: "0644"
+        validate: promtool check config %s
+      notify: restart prometheus
+
+    # remote-write 수신: k6 결과를 Prometheus로 받아 서버 지표와 같은 시간축에 둔다 / 보관 30일
+    - name: Prometheus 실행 옵션
+      ansible.builtin.lineinfile:
+        path: /etc/default/prometheus
+        regexp: "^ARGS="
+        line: 'ARGS="--web.enable-remote-write-receiver --storage.tsdb.retention.time=30d"'
+      notify: restart prometheus
+
+    - name: Prometheus 서비스
+      ansible.builtin.service: {name: prometheus, state: started, enabled: true}
+
+    # Grafana: 공식 저장소에서 설치 (6주차 A5와 같은 방법)
+    - name: Grafana 저장소 키
+      ansible.builtin.get_url:
+        url: https://apt.grafana.com/gpg-full.key
+        dest: /etc/apt/keyrings/grafana.asc
+        mode: "0644"
+
+    - name: Grafana 저장소
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+        filename: grafana
+
+    - name: Grafana 설치
+      ansible.builtin.apt:
+        name: grafana
+        update_cache: true
+
+    - name: Grafana 설정 (admin 비밀번호·가입 차단·외부 통신 끄기)
+      community.general.ini_file:
+        path: /etc/grafana/grafana.ini
+        section: "{{ item.s }}"
+        option: "{{ item.o }}"
+        value: "{{ item.v }}"
+        mode: "0640"
+      loop:
+        - {s: security, o: admin_password, v: "{{ grafana_admin_password }}"}
+        - {s: users, o: allow_sign_up, v: "false"}
+        - {s: analytics, o: reporting_enabled, v: "false"}
+        - {s: analytics, o: check_for_updates, v: "false"}
+      loop_control: {label: "{{ item.s }}.{{ item.o }}"}
+      no_log: true
+      notify: restart grafana
+
+    - name: Grafana 데이터소스 (Prometheus, uid 고정)
+      ansible.builtin.copy:
+        dest: /etc/grafana/provisioning/datasources/zippay.yml
+        mode: "0644"
+        content: |
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              uid: prometheus
+              type: prometheus
+              url: http://localhost:9090
+              isDefault: true
+      notify: restart grafana
+
+    - name: Grafana 대시보드 폴더 등록
+      ansible.builtin.copy:
+        dest: /etc/grafana/provisioning/dashboards/zippay.yml
+        mode: "0644"
+        content: |
+          apiVersion: 1
+          providers:
+            - name: zippay
+              folder: zippay
+              type: file
+              options:
+                path: {{ grafana_dashboards_dir }}
+      notify: restart grafana
+
+    - name: 대시보드 디렉터리
+      ansible.builtin.file: {path: "{{ grafana_dashboards_dir }}", state: directory, owner: grafana, group: grafana, mode: "0755"}
+
+    # 6주차에서 Import한 node_exporter 대시보드(Node Exporter Full, ID 1860)를 파일로 받아 재구축 때도 자동으로 올라오게 한다
+    - name: Node Exporter Full 대시보드 받기
+      ansible.builtin.get_url:
+        url: https://grafana.com/api/dashboards/1860/revisions/latest/download
+        dest: "{{ grafana_dashboards_dir }}/node-exporter-full.json"
+        owner: grafana
+        group: grafana
+        mode: "0644"
+      notify: restart grafana
+
+    - name: 대시보드의 데이터소스 자리표시자를 고정 uid로
+      ansible.builtin.replace:
+        path: "{{ grafana_dashboards_dir }}/node-exporter-full.json"
+        regexp: '\$\{DS_PROMETHEUS\}'
+        replace: prometheus
+      notify: restart grafana
+
+    - name: Grafana 서비스
+      ansible.builtin.service: {name: grafana-server, state: started, enabled: true}
+
+    - name: Grafana(3000)·Prometheus(9090)는 관리 출발지만 (VR 방화벽과 이중 방어)
+      community.general.ufw:
+        rule: allow
+        proto: tcp
+        port: "{{ item[0] }}"
+        src: "{{ item[1] }}"
+      loop: "{{ ['3000', '9090'] | product(monitoring_allowed_cidrs) | list }}"
+
+  handlers:
+    - name: restart prometheus
+      ansible.builtin.service: {name: prometheus, state: restarted}
+    - name: restart grafana
+      ansible.builtin.service: {name: grafana-server, state: restarted}
+

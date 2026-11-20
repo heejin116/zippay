@@ -1,0 +1,11 @@
+# Ansible 관리 파일. 알림 룰 (6주차 A7): 수집 대상이 1분 넘게 응답하지 않으면 FIRING
+groups:
+  - name: zippay
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.host }}({{ $labels.instance }}) 수집 실패 1분 이상"

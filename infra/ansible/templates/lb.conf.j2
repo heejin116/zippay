@@ -1,4 +1,10 @@
 # Ansible 관리 파일. web VM 2대로 분산, TLS 종료, 경로 분기(Phase 2 Ingress와 같은 구조)
+
+# 요청별 시간 기록 — k6가 잰 시간을 구간으로 나눠 본다
+#   rt  = request_time: lb가 요청 첫 바이트를 받은 뒤 응답을 다 보낼 때까지 (lb 처리 + upstream)
+#   urt = upstream_response_time: lb → web 백엔드 응답 시간 (재시도하면 쉼표로 여러 값)
+#   k6 시간 - rt ≈ lb 앞단(클라이언트·VPN·TLS 연결) 구간
+log_format zippay_timing '$time_iso8601 $status "$request_method $uri" rt=$request_time urt=$upstream_response_time uct=$upstream_connect_time ua=$upstream_addr';
 upstream backend {
 {% for ip in web_ips %}
     server {{ ip }}:{{ backend_port }} max_fails=1 fail_timeout=10s;
@@ -21,6 +27,7 @@ server {
     ssl_certificate     /etc/nginx/tls/zippay.crt;
     ssl_certificate_key /etc/nginx/tls/zippay.key;
     ssl_protocols TLSv1.2 TLSv1.3;
+    access_log /var/log/nginx/zippay_timing.log zippay_timing;
 
     # 한 대가 죽으면 다른 대로 재시도. POST(충전 등)는 nginx 기본값대로 재시도하지 않는다 — 결제 중복 방지
     proxy_next_upstream error timeout http_502 http_503;

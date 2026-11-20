@@ -38,6 +38,11 @@ variable "network_cidr" {
   type        = string
 }
 
+variable "monitoring_ports" {
+  description = "lb(Prometheus)가 격리망 밖으로 수집하러 나가는 TCP 포트 (web node_exporter 9100)"
+  type        = list(string)
+}
+
 variable "app_ports" {
   description = "lb가 앱 계층으로 나가는 TCP 포트 (VM 단계: web 8080·8081 / K8s 단계: Ingress NodePort)"
   type        = list(string)

@@ -89,3 +89,8 @@ variable "db_ssh_port" {
   default     = 2211
 }
 
+variable "monitoring_ports" {
+  description = "lb(Prometheus) → 격리망 밖 수집 포트 (Egress 허용). web node_exporter 9100"
+  type        = list(string)
+  default     = ["9100"]
+}

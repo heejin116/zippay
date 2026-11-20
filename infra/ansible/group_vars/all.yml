@@ -29,3 +29,13 @@ db_ip: "{{ hostvars[groups['db'][0]].ansible_host }}"
 # DB에 접속하는 앱 계층 주소(pg_hba·ufw 5432). VR 포트포워딩은 목적지만 바꾸고(DNAT) 출발지는 그대로라고 보고 web IP를 쓴다.
 # 첫 배포에서 연결이 막히면 DB에서 실제 출발지를 확인해 여기만 바꾼다(DESIGN.md 열린 질문).
 db_client_ips: "{{ web_ips }}"
+
+# 관측 (6주차 구성: node_exporter → Prometheus(pull) → Grafana, 모두 lb에)
+lb_private_ip: "{{ hostvars[groups['lb'][0]].private_ip }}"
+db_private_ip: "{{ hostvars[groups['db'][0]].private_ip }}"
+node_exporter_port: 9100
+# 9100은 Prometheus(lb)에서만. web(Shared)에는 lb가 static NAT 공인 IP로 나오고, DB(같은 격리망)에는 사설 IP로 간다
+prometheus_src: "{{ lb_private_ip if inventory_hostname in groups['db'] else lb_ip }}"
+# Grafana(3000)·Prometheus(9090) 접속 허용 출발지 (VR 방화벽과 이중 방어)
+monitoring_allowed_cidrs: "{{ ssh_allowed_cidrs }}"
+grafana_dashboards_dir: /var/lib/grafana/dashboards

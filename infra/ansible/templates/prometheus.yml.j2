@@ -1,0 +1,24 @@
+# Ansible 관리 파일. Prometheus(lb)가 각 서버의 /metrics를 주기적으로 가져온다(pull, 6주차 A3)
+global:
+  scrape_interval: 5s       # 부하 테스트 단계(60초)를 촘촘히 보려고 6주차 예시(15s)보다 짧게
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # 서버 지표 (node_exporter). host 라벨로 서버를 구분한다(6주차 쿼리와 같은 라벨)
+  - job_name: node
+    static_configs:
+      - targets: ["localhost:{{ node_exporter_port }}"]
+        labels: { host: lb }
+{% for h in groups['web'] %}
+      - targets: ["{{ hostvars[h].ansible_host }}:{{ node_exporter_port }}"]
+        labels: { host: {{ h.split('-')[0] }} }
+{% endfor %}
+      - targets: ["{{ db_private_ip }}:{{ node_exporter_port }}"]   # 같은 격리망 — 사설 IP로 직접
+        labels: { host: {{ groups['db'][0].split('-')[0] }} }

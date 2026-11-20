@@ -23,15 +23,15 @@ output "db_private_ip" {
 
 # Ansible 인벤토리: terraform output -raw ansible_inventory > ../ansible/inventory.ini
 # heredoc + 템플릿 지시자는 들여쓰기·빈 줄이 남아서 줄 목록을 join으로 만든다
-# 격리망 VM은 VR 경유: lb는 static NAT IP:22, DB는 포트포워딩 IP:db_ssh_port
+# 격리망 VM은 VR 경유: lb는 static NAT IP:22, DB는 포트포워딩 IP:db_ssh_port. private_ip는 격리망 내부 통신용(lb → DB 지표 수집)
 output "ansible_inventory" {
   value = join("\n", concat(
     ["[lb]"],
-    ["${module.lb.names[0]} ansible_host=${module.edge.lb_public_ip}"],
+    ["${module.lb.names[0]} ansible_host=${module.edge.lb_public_ip} private_ip=${module.lb.ips[0]}"],
     ["", "[web]"],
     [for i, ip in module.web.ips : "${module.web.names[i]} ansible_host=${ip}"],
     ["", "[db]"],
-    ["${module.db.names[0]} ansible_host=${module.edge.db_public_ip} ansible_port=${module.edge.db_ssh_port}"],
+    ["${module.db.names[0]} ansible_host=${module.edge.db_public_ip} ansible_port=${module.edge.db_ssh_port} private_ip=${module.db.ips[0]}"],
     ["", "[all:vars]", "ansible_user=ubuntu", ""],
   ))
 }
